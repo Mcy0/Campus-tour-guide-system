@@ -63,7 +63,7 @@ typedef struct {
 	int vexnum;
 	int arcnum;
 }AdjList;
-//创建图 
+//创建图
 AdjList* Create()
 {
 	AdjList *G = NULL;
@@ -119,32 +119,20 @@ AdjList* Create()
 		}
 	}
 	G->arcnum = i;
+	fclose(fp);
 	return G;
-}
-//打印图
-void Print(AdjList *G)
-{
-	ArcNode *p;
-	int i;
-	for(i = 1; i <= G->vexnum; i++)
-	{
-		//printf("%c %s\n", G->vertex[i].id, G->vertex[i].name);
-		p = G->vertex[i].head;
-		while(p != NULL)
-		{
-			printf("%d %d %d\n", i, p->adjvex, p->weight);
-			p = p->next;
-		}
-	}
 }
 //显示map
 void ShowMap(AdjList *G)
 {
-	int i, j;
+	int i, j, flag;
+	flag =0;
 	for(i = 1; i <= G->vexnum; i++)
 	{ 
 		ArcNode *p;
 		p = G->vertex[i].head;
+		if(p == NULL)
+		flag = 1;
 		printf("%-10s", G->vertex[i].name);
 		j = 1;
 		if(p == NULL)
@@ -160,6 +148,8 @@ void ShowMap(AdjList *G)
 			p = p->next;
 		}
 	}
+	if(flag == 1)
+	printf("【非连通图】\n");
 }
 //查询信息
 void FindInformation(AdjList *G)
@@ -219,6 +209,19 @@ int SelectIndex(AdjList *G, char str[])
 				return i;
 			}
 		}		
+	}
+	return 0;	
+}
+int SelectIndexById(AdjList *G, char ch)
+{
+	int i;
+	for(i = 1; i <= G->vexnum; i++)
+	{
+		if(G->vertex[i].id == ch)
+		{
+			return i;
+		}
+			
 	}
 	return 0;	
 }
@@ -520,12 +523,8 @@ typedef struct{
 //prim
 void Prim(AdjList *G)
 {
-	Closedge closedge[MAXEX + 1];
-//	char star[20], end[20];
-//    printf("输入【起点】-->【终点】:");
-//    scanf("%s %s", star, end);
-    int starIndex = 1;//SelectIndex(G, star);
-//    int endIndex = SelectIndex(G, end);
+	Closedge closedge[MAXEX + 1]; 
+    int starIndex = 1;
 	int i, min, m, n;
 	//初始化 
 	for(i = 1; i <= G->vexnum; i++)
@@ -554,7 +553,7 @@ void Prim(AdjList *G)
 		}
 		if(min == INFINITY)
 		{
-			printf("无最小生成树\n"); 
+			printf("此图不是连通图，无最小生成树\n"); 
 			break;
 		}
 		closedge[m].lowcost = 0;
@@ -570,6 +569,262 @@ void Prim(AdjList *G)
 	}
 	
 }
+//添加地点 
+int AddVex(AdjList *G)
+{
+	char id, name[20], des[100];
+	printf("输入【编号、名称、描述】：");
+	scanf("%c %s %s", &id, name, des);
+	int v1 = SelectIndexById(G, id);
+	int v2 = SelectIndex(G, name);
+	if(v1 && v2)
+	{
+		printf("该地点与已存在地点【重复】");
+		return 0;
+	}
+	G->vertex[++G->vexnum].id = id;
+	strcpy(G->vertex[G->vexnum].name, name);
+	strcpy(G->vertex[G->vexnum].des, des);
+	FILE *fp = NULL;
+	fp = fopen("map.txt","a");
+	if(fp == NULL) exit(1);
+	fprintf(fp, "\n%c %s %s", id, name, des);
+	fclose(fp);
+	printf("成功\n");
+	return 1;
+}
+//添加边
+int AddArc(AdjList *G)
+{
+	char star[20], end[20];
+	int weight;
+	printf("输入【起点】-(权值)->【终点】:");
+	scanf("%s %d %s", star, &weight, end);
+	int starIndex = SelectIndex(G, star);
+	int endIndex = SelectIndex(G, end);
+	if(starIndex == 0 || endIndex == 0)
+	{
+		printf("您输入地点不存在\n");
+		return 0; 
+	}
+	if(SelectWeight(G, starIndex, endIndex) != INFINITY)
+	{
+		printf("改边已存在\n");
+		return 0;
+	}
+	ArcNode *p = G->vertex[starIndex].head;
+	ArcNode *q;
+	q = (ArcNode*)malloc(sizeof(ArcNode));
+	q->adjvex = endIndex;
+	q->weight = weight;
+	q->next = p->next;
+	p = q->next;
+	G->vertex[starIndex].head = p;
+	FILE *fp = NULL;
+	
+	fp = fopen("map2.txt","a");
+	if(fp == NULL)
+	exit(1);
+	fprintf(fp, "\n%d %d %d", starIndex, endIndex, weight);
+	fprintf(fp, "\n%d %d %d", endIndex, starIndex,  weight);
+	printf("成功\n");
+	return 1;
+}
+//删除边-写入文件 
+void PrintToFILE(AdjList *G)
+{
+	ArcNode *p;
+	int i, count;
+	count = 0;
+	FILE *fp = fopen("map2.txt", "w");
+	for(i = 1; i <= G->vexnum; i++)
+	{
+		p = G->vertex[i].head;
+		while(p != NULL)
+		{
+			if(count == 0)
+			{
+				fprintf(fp,"%d %d %d", i, p->adjvex, p->weight);
+				count++;
+			}
+			else
+			{
+				fprintf(fp,"\n%d %d %d", i, p->adjvex, p->weight);
+			}
+			p = p->next;
+		}
+	}
+	fclose(fp);
+}
+//删除边
+int DeleteArc(AdjList *G)
+{
+	char star[20], end[20];
+	printf("输入【起点】-->【终点】:");
+	scanf("%s %s", star, end);
+	int starIndex = SelectIndex(G, star);
+	int endIndex = SelectIndex(G, end);
+	if(starIndex == 0 || endIndex == 0)
+	{
+		printf("输入边不存在\n");
+		return 0;
+	}
+	if(SelectWeight(G, starIndex, endIndex) == INFINITY)
+	{
+		printf("输入边不存在\n");
+		return 0;
+	}
+	ArcNode *p, *q;
+	q = p = G->vertex[starIndex].head;
+	while(p->adjvex != endIndex)
+	{
+		q = p;
+		p = p->next;
+	}
+	if(p == q)
+	{
+		G->vertex[starIndex].head = p->next;
+		free(p);
+	}
+	else
+	{
+		q = p->next;
+		free(p);
+	}
+	q = p = G->vertex[endIndex].head;
+	while(p->adjvex != starIndex)
+	{
+		q = p;
+		p = p->next;
+	}
+	if(p == q)
+	{
+		G->vertex[endIndex].head = p->next;
+		free(p);
+		printf("成功\n");
+	}
+	else
+	{
+		q = p->next;
+		free(p);
+		printf("成功\n");
+	}
+	G->arcnum--;
+	PrintToFILE(G);
+	return 1;
+}
+//删除点-写入文件 
+void PrintAllToFILE(AdjList *G)
+{
+	ArcNode *p;
+	int i, count;
+	count = 0;
+	FILE *fp = fopen("map2.txt", "w");
+	for(i = 1; i <= G->vexnum; i++)
+	{
+		p = G->vertex[i].head;
+		while(p != NULL)
+		{
+			if(count == 0)
+			{
+				fprintf(fp,"%d %d %d", i, p->adjvex, p->weight);
+				count++;
+			}
+			else
+			{
+				fprintf(fp,"\n%d %d %d", i, p->adjvex, p->weight);
+			}
+			p = p->next;
+		}
+	}
+	fclose(fp);
+	printf("到我了\n");
+	FILE *ff;
+	count = 0;
+	ff = fopen("map.txt", "w");
+	for(i = 1; i <= G->vexnum; i++)
+	{
+		printf("%c %s %s\n", G->vertex[i].id, G->vertex[i].name, G->vertex[i].des);
+		if(count == 0)
+		{
+			fprintf(ff,"%c %s %s", G->vertex[i].id, G->vertex[i].name, G->vertex[i].des);
+			count++;
+		}
+		else
+		{
+			fprintf(ff,"\n%c %s %s", G->vertex[i].id, G->vertex[i].name, G->vertex[i].des);
+		}
+	}
+	fclose(ff);
+}
+//删除点
+void DeleteVex(AdjList *G)
+{
+	printf("输入你要删除的【地点】\n");
+	char str[20];
+	printf("输入【地点】:");
+	scanf("%s", str);
+	ArcNode *p, *q;
+	int v = SelectIndex(G, str);
+	if(v == 0)
+	{
+		printf("未找到该点\n");
+		return;
+	}
+	p = G->vertex[v].head;
+	if(p != NULL)
+	q = p->next;
+	while(p != NULL)
+	{
+		free(p);
+		p = q;
+		if(p != NULL)
+		q = p->next;
+	}
+	int i;
+	for(i = v; i < G->vexnum; i++ )
+	{
+		G->vertex[i] = G->vertex[i + 1];
+	}
+	G->vexnum--;
+	
+	
+	for(i = 1; i <= G->vexnum; i++)
+	{
+		q = p = G->vertex[i].head;
+		while(p != NULL)
+		{
+			if(p->adjvex > v)
+			{
+				p->adjvex--;
+			}
+			else
+			{
+				if(p->adjvex == v)
+				{
+					if(p == q)
+					{
+						p = G->vertex[i].head = p->next;
+						free(q);
+						q = p;
+						continue;
+					}
+					else
+					{
+						q->next = p->next;
+						free(p);
+						p = q->next;
+						continue;
+					}
+				}
+			}
+			q = p;
+			p = p->next;
+		}
+	}
+	PrintAllToFILE(G);
+}
+
 //菜单 
 void Menu(AdjList *G)
 {
@@ -580,6 +835,10 @@ void Menu(AdjList *G)
 	printf("3.最佳路径\n");
 	printf("4.全部路径\n");
 	printf("5.最佳布网\n");
+	printf("6.添加地点\n");
+	printf("7.添加边\n");
+	printf("8.删除边\n");
+	printf("9.删除点\n");
 	int i;
 	scanf("%d",&i);
 	switch(i)
@@ -606,6 +865,22 @@ void Menu(AdjList *G)
 		}
 		case 5:{
 			Prim(G);
+			break;
+		}
+		case 6:{
+			AddVex(G); 
+			break;
+		} 
+		case 7:{
+			AddArc(G);
+			break;
+		}
+		case 8:{
+			DeleteArc(G);
+			break;
+		}
+		case 9:{
+			DeleteVex(G);
 			break;
 		}
 		default :{
